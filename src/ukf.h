@@ -11,8 +11,25 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 class UKF {
-public:
+ public:
 
+  /**
+   * Constructor
+   */
+  UKF();
+
+  /**
+   * Destructor
+   */
+  virtual ~UKF();
+
+  /**
+   * Run the Unscented Kalman Filter process and return the state
+   */
+  VectorXd ProcessMeasurement(const MeasurementPackage &);
+
+
+ private:
   ///* initially set to false, set to true in first call of ProcessMeasurement
   bool is_initialized_;
 
@@ -35,73 +52,76 @@ public:
   long long time_us_;
 
   ///* Process noise standard deviation longitudinal acceleration in m/s^2
-  double std_a_;
+  const double std_a_;
 
   ///* Process noise standard deviation yaw acceleration in rad/s^2
-  double std_yawdd_;
+  const double std_yawdd_;
 
   ///* Laser measurement noise standard deviation position1 in m
-  double std_laspx_;
+  const double std_laspx_;
 
   ///* Laser measurement noise standard deviation position2 in m
-  double std_laspy_;
+  const double std_laspy_;
 
   ///* Radar measurement noise standard deviation radius in m
-  double std_radr_;
+  const double std_radr_;
 
   ///* Radar measurement noise standard deviation angle in rad
-  double std_radphi_;
+  const double std_radphi_;
 
   ///* Radar measurement noise standard deviation radius change in m/s
-  double std_radrd_ ;
+  const double std_radrd_;
 
   ///* Weights of sigma points
   VectorXd weights_;
 
   ///* State dimension
-  int n_x_;
+  const int n_x_;
 
   ///* Augmented state dimension
-  int n_aug_;
+  const int n_aug_;
+
+  ///* Number of sigma points
+  const int n_sig_;
 
   ///* Sigma point spreading parameter
-  double lambda_;
-
-
-  /**
-   * Constructor
-   */
-  UKF();
+  const double lambda_;
 
   /**
-   * Destructor
+   * Process the Measurements for Lidar and Radar (splitting into methods to
+   * enable change to Template Method in the event another sensor type is added
+   * later.
    */
-  virtual ~UKF();
+  void ProcessLidarMeasurement(const MeasurementPackage &);
+  void ProcessRadarMeasurement(const MeasurementPackage &);
 
   /**
-   * ProcessMeasurement
-   * @param meas_package The latest measurement data of either radar or laser
+   * Initialize the state and time
    */
-  void ProcessMeasurement(MeasurementPackage meas_package);
+  void Init(float, float, long long);
 
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
    * matrix
-   * @param delta_t Time between k and k+1 in s
    */
-  void Prediction(double delta_t);
+  void Prediction(double);
 
   /**
-   * Updates the state and the state covariance matrix using a laser measurement
-   * @param meas_package The measurement at k+1
+   * Updates the state and the state covariance matrix for laser and radar
+   * measurements
    */
-  void UpdateLidar(MeasurementPackage meas_package);
+  void UpdateLidar(const MeasurementPackage &);
+  void UpdateRadar(const MeasurementPackage &);
 
   /**
-   * Updates the state and the state covariance matrix using a radar measurement
-   * @param meas_package The measurement at k+1
+   * Normalizes the angles if needed
    */
-  void UpdateRadar(MeasurementPackage meas_package);
+  inline void Normalize(VectorXd& vector, const int angleIndex) {
+    while (vector(angleIndex) > M_PI)
+      vector(angleIndex) -= 2. * M_PI;
+    while (vector(angleIndex) < -M_PI)
+      vector(angleIndex) += 2. * M_PI;
+  }
 };
 
 #endif /* UKF_H */
