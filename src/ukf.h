@@ -116,11 +116,8 @@ class UKF {
   /**
    * Normalizes the angles if needed
    */
-  inline void Normalize(VectorXd& vector, const int angleIndex) {
-    while (vector(angleIndex) > M_PI)
-      vector(angleIndex) -= 2. * M_PI;
-    while (vector(angleIndex) < -M_PI)
-      vector(angleIndex) += 2. * M_PI;
+  inline float Normalize(float angle_radians) {
+    return angle_radians = atan2(sin(angle_radians),cos(angle_radians));
   }
 };
 

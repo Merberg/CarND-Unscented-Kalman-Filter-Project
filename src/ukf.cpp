@@ -207,7 +207,7 @@ void UKF::Prediction(double delta_t) {
 
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
-    Normalize(x_diff, 3);
+    x_diff(3) = Normalize(x_diff(3));
     P_ += weights_(i) * x_diff * x_diff.transpose();
   }
 
@@ -269,12 +269,7 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   for (int i = 0; i < n_sig_; i++) {
     // state difference
     VectorXd z_diff = Zsig.col(i) - z_pred;
-
-    //angle normalization
-    while (z_diff(1) > M_PI)
-      z_diff(1) -= 2. * M_PI;
-    while (z_diff(1) < -M_PI)
-      z_diff(1) += 2. * M_PI;
+    z_diff(1) = Normalize(z_diff(1));
 
     S += weights_(i) * z_diff * z_diff.transpose();
   }
@@ -294,11 +289,11 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   for (int i = 0; i < n_sig_; i++) {
     //residual
     VectorXd z_diff = Zsig.col(i) - z_pred;
-    Normalize(z_diff, 1);
+    z_diff(1) = Normalize(z_diff(1));
 
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
-    Normalize(x_diff, 3);
+    x_diff(3) = Normalize(x_diff(3));
 
     Tc += weights_(i) * x_diff * z_diff.transpose();
   }
@@ -309,7 +304,7 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   //update state mean and covariance matrix
   //residual
   VectorXd z_diff = measurement.raw_measurements_ - z_pred;
-  Normalize(z_diff, 1);
+  z_diff(1) = Normalize(z_diff(1));
   x_ += K * z_diff;
   P_ += -K * S * K.transpose();
 
