@@ -13,8 +13,8 @@ UKF::UKF()
       use_laser_(true),
       use_radar_(true),
       time_us_(0),
-      std_a_(30),  //TODO adjust
-      std_yawdd_(30),  //TODO adjust
+      std_a_(8),  //TODO adjust
+      std_yawdd_(8),  //TODO adjust
       std_laspx_(0.15),
       std_laspy_(0.15),
       std_radr_(0.3),
@@ -109,45 +109,37 @@ void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement) {
 
 //******************************************************************************
 void UKF::Init(float px, float py, long long ts) {
-  static const float UKF_INIT_VX = 0;
-  static const float UKF_INIT_VY = 0;
-
   /**
    Initialize state.
    */
-  x_ = VectorXd(4);
+  x_ = VectorXd(n_x_);
+  x_.fill(0.0);
   x_(0) = px;
   x_(1) = py;
-  x_(2) = UKF_INIT_VX;
-  x_(3) = UKF_INIT_VY;
 
   // record the time
   time_us_ = ts;
 }
 
 //******************************************************************************
-void UKF::Prediction(double delta_t) {
+void UKF::Prediction(double timestamp) {
+
+  double delta_t = (timestamp - time_us_);
+  time_us_ = timestamp;
 
   /*
    * Generate Sigma Points
    */
   //create augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
-
-  //create augmented state covariance
-  MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
-
-  //create sigma point matrix
-  MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
-
-  //create augmented mean state
   x_aug.head(5) = x_;
   x_aug(5) = 0;
   x_aug(6) = 0;
 
-  //create augmented covariance matrix
+  //create augmented state covariance
+  MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
   P_aug.fill(0.0);
-  P_aug.topLeftCorner(n_x_, n_x_) = P_aug;
+  P_aug.topLeftCorner(n_x_, n_x_) = P_;
   P_aug(n_x_, n_x_) = std_a_ * std_a_;
   P_aug(n_x_ + 1, n_x_ + 1) = std_yawdd_ * std_yawdd_;
 
@@ -155,6 +147,7 @@ void UKF::Prediction(double delta_t) {
   MatrixXd L = P_aug.llt().matrixL();
 
   //create augmented sigma points
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
   Xsig_aug.col(0) = x_aug;
 
   for (int i = 0; i < n_aug_; i++) {
