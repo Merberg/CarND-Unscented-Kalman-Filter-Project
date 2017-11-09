@@ -117,7 +117,8 @@ class UKF {
    * Normalizes the angles if needed
    */
   inline float Normalize(float angle_radians) {
-    return angle_radians = atan2(sin(angle_radians),cos(angle_radians));
+    float int_part = 0.0;
+    return modff((angle_radians + M_PI)/2.*M_PI, &int_part) - M_PI;
   }
 };
 

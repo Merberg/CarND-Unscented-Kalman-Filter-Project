@@ -11,7 +11,7 @@ using std::vector;
 UKF::UKF()
     : is_initialized_(false),
       use_laser_(true),
-      use_radar_(true),
+      use_radar_(false),
       time_us_(0),
       std_a_(8),  //TODO adjust
       std_yawdd_(8),  //TODO adjust
@@ -51,11 +51,19 @@ VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement) {
   }
 
   //Return the updated state
+  cout << "x: " << x_ << endl;
+  cout << endl;
   return x_;
 }
 
 //******************************************************************************
 void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement) {
+
+  if (!use_laser_) {
+    cout << "Lidar NOT IN USE" << endl;
+    return;
+  }
+  cout << "Process Lidar" << endl;
 
   /*****************************************************************************
    *  Initialization
@@ -83,6 +91,12 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement) {
 
 //******************************************************************************
 void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement) {
+
+  if (!use_radar_) {
+    cout << "Radar NOT IN USE" << endl;
+    return;
+  }
+  cout << "Process Radar" << endl;
 
   /*****************************************************************************
    *  Initialization
@@ -124,7 +138,7 @@ void UKF::Init(float px, float py, long long ts) {
 //******************************************************************************
 void UKF::Prediction(double timestamp) {
 
-  double delta_t = (timestamp - time_us_);
+  double dt = (timestamp - time_us_);
   time_us_ = timestamp;
 
   /*
@@ -154,15 +168,16 @@ void UKF::Prediction(double timestamp) {
     Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug_) * L.col(i);
     Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lambda_ + n_aug_) * L.col(i);
   }
+  cout << "Xsig_aug:" << Xsig_aug << endl;
 
   /*
    * Predict Sigma Points
    */
-  double half_delta_t_sqr = 0.5 * delta_t * delta_t;
+  double half_dt_sqr = 0.5 * dt * dt;
 
   for (int i = 0; i < n_sig_; i++) {
-    double p_x = Xsig_aug(0, i);
-    double p_y = Xsig_aug(1, i);
+    double px = Xsig_aug(0, i);
+    double py = Xsig_aug(1, i);
     double v = Xsig_aug(2, i);
     double yaw = Xsig_aug(3, i);
     double yawd = Xsig_aug(4, i);
@@ -170,28 +185,28 @@ void UKF::Prediction(double timestamp) {
     double nu_yawdd = Xsig_aug(6, i);
 
     if (yawd != 0) {
-      Xsig_pred_(0, i) = p_x
-          + v / yawd * (sin(yaw + yawd * delta_t) - sin(yaw));
-      Xsig_pred_(1, i) = p_y
-          + v / yawd * (-cos(yaw + yawd * delta_t) + cos(yaw));
+      Xsig_pred_(0, i) = px + v / yawd * (sin(yaw + yawd * dt) - sin(yaw));
+      Xsig_pred_(1, i) = py + v / yawd * (-cos(yaw + yawd * dt) + cos(yaw));
     } else {
-      Xsig_pred_(0, i) = p_x + v * cos(yaw) * delta_t;
-      Xsig_pred_(1, i) = p_y + v * sin(yaw) * delta_t;
+      Xsig_pred_(0, i) = px + v * cos(yaw) * dt;
+      Xsig_pred_(1, i) = py + v * sin(yaw) * dt;
     }
-    Xsig_pred_(0, i) += half_delta_t_sqr * cos(yaw) * nu_a;
-    Xsig_pred_(1, i) += half_delta_t_sqr * sin(yaw) * nu_a;
-    Xsig_pred_(2, i) = v + delta_t * nu_a;
-    Xsig_pred_(3, i) = yaw + yawd * delta_t + half_delta_t_sqr * nu_yawdd;
-    Xsig_pred_(4, i) = yawd + delta_t * nu_yawdd;
+    Xsig_pred_(0, i) += half_dt_sqr * cos(yaw) * nu_a;
+    Xsig_pred_(1, i) += half_dt_sqr * sin(yaw) * nu_a;
+    Xsig_pred_(2, i) = v + dt * nu_a;
+    Xsig_pred_(3, i) = yaw + yawd * dt + half_dt_sqr * nu_yawdd;
+    Xsig_pred_(4, i) = yawd + dt * nu_yawdd;
   }
+  cout << "Xsig_pred_:" << Xsig_pred_ << endl;
 
   /*
    * Predict Mean and Covariance
    */
   //predict state mean
-  x_.fill(0.0);
+  VectorXd x_pred = VectorXd(n_x_);
+  x_pred.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
-    x_ += weights_(i) * Xsig_pred_.col(i);
+    x_pred += weights_(i) * Xsig_pred_.col(i);
   }
 
   //predict state covariance matrix
@@ -199,11 +214,12 @@ void UKF::Prediction(double timestamp) {
   for (int i = 0; i < n_sig_; i++) {
 
     // state difference
-    VectorXd x_diff = Xsig_pred_.col(i) - x_;
+    VectorXd x_diff = Xsig_pred_.col(i) - x_pred;
     x_diff(3) = Normalize(x_diff(3));
     P_ += weights_(i) * x_diff * x_diff.transpose();
   }
 
+  cout << "P:" << P_ << endl;
 }
 
 //******************************************************************************
