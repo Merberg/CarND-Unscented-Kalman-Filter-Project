@@ -10,8 +10,8 @@ using std::vector;
 //******************************************************************************
 UKF::UKF()
     : is_initialized_(false),
-      use_laser_(true),
-      use_radar_(false),
+      use_laser_(false),
+      use_radar_(true),
       time_us_(0),
       std_a_(1),  //TODO adjust
       std_yawdd_(1),  //TODO adjust
@@ -50,9 +50,6 @@ VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement) {
     ProcessRadarMeasurement(measurement);
   }
 
-  //Return the updated state
-  cout << "x: " << x_ << endl;
-  cout << endl;
   return x_;
 }
 
@@ -87,6 +84,11 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement) {
    ****************************************************************************/
   UpdateLidar(measurement);
 
+  //Return the updated state
+  cout << "x: " << x_ << endl;
+  cout << "P:" << P_ << endl;
+  cout << endl;
+
 }
 
 //******************************************************************************
@@ -119,6 +121,11 @@ void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement) {
    *  Update
    ****************************************************************************/
   UpdateRadar(measurement);
+
+  //Return the updated state
+  cout << "x: " << x_ << endl;
+  cout << "P:" << P_ << endl;
+  cout << endl;
 }
 
 //******************************************************************************
@@ -138,8 +145,10 @@ void UKF::Init(float px, float py, long long ts) {
 //******************************************************************************
 void UKF::Prediction(double timestamp) {
 
-  double dt = (timestamp - time_us_)  / 1000000.0; //dt in seconds
+  double dt = (timestamp - time_us_) / 1000000.0;  //dt in seconds
   time_us_ = timestamp;
+
+  cout << "dt:" << dt << endl;
 
   /*
    * Generate Sigma Points
@@ -168,7 +177,6 @@ void UKF::Prediction(double timestamp) {
     Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug_) * L.col(i);
     Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lambda_ + n_aug_) * L.col(i);
   }
-  cout << "Xsig_aug:" << Xsig_aug << endl;
 
   /*
    * Predict Sigma Points
@@ -197,7 +205,6 @@ void UKF::Prediction(double timestamp) {
     Xsig_pred_(3, i) = yaw + yawd * dt + half_dt_sqr * nu_yawdd;
     Xsig_pred_(4, i) = yawd + dt * nu_yawdd;
   }
-  cout << "Xsig_pred_:" << Xsig_pred_ << endl;
 
   /*
    * Predict Mean and Covariance
@@ -219,7 +226,6 @@ void UKF::Prediction(double timestamp) {
     P_ += weights_(i) * x_diff * x_diff.transpose();
   }
 
-  cout << "P:" << P_ << endl;
 }
 
 //******************************************************************************
@@ -248,6 +254,7 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   /**
    TODO: calculate the radar NIS.
    */
+
   //transform sigma points into measurement space
   static const int n_z = 3;  //r, phi, and r_dot
   MatrixXd Zsig = MatrixXd(n_z, n_sig_);
@@ -318,3 +325,15 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   P_ += -K * S * K.transpose();
 
 }
+
+//******************************************************************************
+float UKF::Normalize(float angle_radians) {
+  //float int_part = 0.0;
+  //return modff((angle_radians + M_PI)/2.*M_PI, &int_part) - M_PI;
+  while (angle_radians > M_PI)
+    angle_radians -= 2. * M_PI;
+  while (angle_radians < -M_PI)
+    angle_radians += 2. * M_PI;
+  return angle_radians;
+}
+

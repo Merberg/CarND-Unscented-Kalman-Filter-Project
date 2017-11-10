@@ -28,7 +28,6 @@ class UKF {
    */
   VectorXd ProcessMeasurement(const MeasurementPackage &);
 
-
  private:
   ///* initially set to false, set to true in first call of ProcessMeasurement
   bool is_initialized_;
@@ -116,10 +115,9 @@ class UKF {
   /**
    * Normalizes the angles if needed
    */
-  inline float Normalize(float angle_radians) {
-    float int_part = 0.0;
-    return modff((angle_radians + M_PI)/2.*M_PI, &int_part) - M_PI;
-  }
+  float Normalize(float angle_radians);
+
+
 };
 
 #endif /* UKF_H */
