@@ -13,8 +13,8 @@ UKF::UKF()
       use_laser_(true),
       use_radar_(false),
       time_us_(0),
-      std_a_(8),  //TODO adjust
-      std_yawdd_(8),  //TODO adjust
+      std_a_(1),  //TODO adjust
+      std_yawdd_(1),  //TODO adjust
       std_laspx_(0.15),
       std_laspy_(0.15),
       std_radr_(0.3),
@@ -138,7 +138,7 @@ void UKF::Init(float px, float py, long long ts) {
 //******************************************************************************
 void UKF::Prediction(double timestamp) {
 
-  double dt = (timestamp - time_us_);
+  double dt = (timestamp - time_us_)  / 1000000.0; //dt in seconds
   time_us_ = timestamp;
 
   /*
