@@ -56,26 +56,20 @@ class UKF {
   ///* Process noise standard deviation yaw acceleration in rad/s^2
   const double std_yawdd_;
 
-  ///* Laser measurement noise standard deviation position1 in m
-  const double std_laspx_;
+  ///* Laser measurement noise covariance matrix
+  MatrixXd R_lidar_;
 
-  ///* Laser measurement noise standard deviation position2 in m
-  const double std_laspy_;
-
-  ///* Radar measurement noise standard deviation radius in m
-  const double std_radr_;
-
-  ///* Radar measurement noise standard deviation angle in rad
-  const double std_radphi_;
-
-  ///* Radar measurement noise standard deviation radius change in m/s
-  const double std_radrd_;
+  ///* Radar measurement noise covariance matrix
+  MatrixXd R_radar_;
 
   ///* Weights of sigma points
   VectorXd weights_;
 
   ///* State dimension
   const int n_x_;
+
+  ///* Radar dimension (rho, phi, and rho_dot)
+  const int n_z_;
 
   ///* Augmented state dimension
   const int n_aug_;
@@ -100,10 +94,15 @@ class UKF {
   void Init(float, float, long long);
 
   /**
-   * Prediction Predicts sigma points, the state, and the state covariance
-   * matrix
+   * Prediction methods predict sigma points, the state, and the state covariance
+   * matrix.  The functionality is split into methods to make it easier for
+   * testing with known data points (i.e. from the lectures).
    */
   void Prediction(double);
+  MatrixXd Prediction_GenerateSigmaPoints();
+  MatrixXd Prediction_PredictSigmaPoints(double dt, MatrixXd Xsig_aug);
+  MatrixXd Prediction_PredictMeanAndCovariance(VectorXd weights,
+                                               MatrixXd Xsig_pred);
 
   /**
    * Updates the state and the state covariance matrix for laser and radar
@@ -117,6 +116,10 @@ class UKF {
    */
   float Normalize(float angle_radians);
 
+  /**
+   * Method to test implementation against the lectures
+   */
+  void test_ProcessRadarMeasurement();
 
 };
 
