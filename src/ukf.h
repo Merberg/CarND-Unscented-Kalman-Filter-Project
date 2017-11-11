@@ -122,7 +122,8 @@ class UKF {
   /**
    * Method to test implementation against the lectures
    */
-  void test_ProcessRadarMeasurement();
+  void test_Prediction(bool);
+  void test_UpdateRadar(bool);
   void test_CompareResults(MatrixXd, MatrixXd, std::string);
 
 };
