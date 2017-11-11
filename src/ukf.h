@@ -51,10 +51,10 @@ class UKF {
   long long time_us_;
 
   ///* Process noise standard deviation longitudinal acceleration in m/s^2
-  const double std_a_;
+  double std_a_;
 
   ///* Process noise standard deviation yaw acceleration in rad/s^2
-  const double std_yawdd_;
+  double std_yawdd_;
 
   ///* Laser measurement noise covariance matrix
   MatrixXd R_lidar_;
@@ -100,26 +100,30 @@ class UKF {
    */
   void Prediction(double);
   MatrixXd Prediction_GenerateSigmaPoints();
-  MatrixXd Prediction_PredictSigmaPoints(double dt, MatrixXd Xsig_aug);
-  MatrixXd Prediction_PredictMeanAndCovariance(VectorXd weights,
-                                               MatrixXd Xsig_pred);
+  void Prediction_PredictSigmaPoints(const double, const MatrixXd&);
+  void Prediction_PredictMeanAndCovariance();
 
   /**
    * Updates the state and the state covariance matrix for laser and radar
-   * measurements
+   * measurements.  The functionality is split into methods to make it easier for
+   * testing with known data points.
    */
   void UpdateLidar(const MeasurementPackage &);
+
   void UpdateRadar(const MeasurementPackage &);
+  void UpdateRadar_PredictMeanAndCovariance(MatrixXd&, VectorXd&, MatrixXd&);
+  void UpdateRadar_UpdateState(const VectorXd&, const MatrixXd&, const VectorXd&, const MatrixXd&);
 
   /**
    * Normalizes the angles if needed
    */
-  float Normalize(float angle_radians);
+  float Normalize(float);
 
   /**
    * Method to test implementation against the lectures
    */
   void test_ProcessRadarMeasurement();
+  void test_CompareResults(MatrixXd, MatrixXd, std::string);
 
 };
 

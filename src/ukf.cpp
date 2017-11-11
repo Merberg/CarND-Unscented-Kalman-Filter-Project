@@ -165,8 +165,8 @@ void UKF::Prediction(double timestamp) {
   cout << "dt:" << dt << endl;
 
   MatrixXd Xsig_aug = Prediction_GenerateSigmaPoints();
-  Xsig_pred_ = Prediction_PredictSigmaPoints(dt, Xsig_aug);
-  P_ = Prediction_PredictMeanAndCovariance(weights_, Xsig_pred_);
+  Prediction_PredictSigmaPoints(dt, Xsig_aug);
+  Prediction_PredictMeanAndCovariance();
 
 }
 
@@ -200,9 +200,9 @@ MatrixXd UKF::Prediction_GenerateSigmaPoints() {
 }
 
 //******************************************************************************
-MatrixXd UKF::Prediction_PredictSigmaPoints(double dt, MatrixXd Xsig_aug) {
+void UKF::Prediction_PredictSigmaPoints(const double dt,
+                                        const MatrixXd& Xsig_aug) {
   double half_dt_sqr = 0.5 * dt * dt;
-  MatrixXd Xsig_pred = MatrixXd(n_x_, n_sig_);
 
   for (int i = 0; i < n_sig_; i++) {
     double px = Xsig_aug(0, i);
@@ -214,40 +214,35 @@ MatrixXd UKF::Prediction_PredictSigmaPoints(double dt, MatrixXd Xsig_aug) {
     double nu_yawdd = Xsig_aug(6, i);
 
     if (fabs(yawd) > 0.001) {
-      Xsig_pred(0, i) = px + v / yawd * (sin(yaw + yawd * dt) - sin(yaw));
-      Xsig_pred(1, i) = py + v / yawd * (-cos(yaw + yawd * dt) + cos(yaw));
+      Xsig_pred_(0, i) = px + v / yawd * (sin(yaw + yawd * dt) - sin(yaw));
+      Xsig_pred_(1, i) = py + v / yawd * (-cos(yaw + yawd * dt) + cos(yaw));
     } else {
-      Xsig_pred(0, i) = px + v * cos(yaw) * dt;
-      Xsig_pred(1, i) = py + v * sin(yaw) * dt;
+      Xsig_pred_(0, i) = px + v * cos(yaw) * dt;
+      Xsig_pred_(1, i) = py + v * sin(yaw) * dt;
     }
-    Xsig_pred(0, i) += half_dt_sqr * cos(yaw) * nu_a;
-    Xsig_pred(1, i) += half_dt_sqr * sin(yaw) * nu_a;
-    Xsig_pred(2, i) = v + dt * nu_a;
-    Xsig_pred(3, i) = yaw + yawd * dt + half_dt_sqr * nu_yawdd;
-    Xsig_pred(4, i) = yawd + dt * nu_yawdd;
+    Xsig_pred_(0, i) += half_dt_sqr * cos(yaw) * nu_a;
+    Xsig_pred_(1, i) += half_dt_sqr * sin(yaw) * nu_a;
+    Xsig_pred_(2, i) = v + dt * nu_a;
+    Xsig_pred_(3, i) = yaw + yawd * dt + half_dt_sqr * nu_yawdd;
+    Xsig_pred_(4, i) = yawd + dt * nu_yawdd;
   }
-  return Xsig_pred;
 }
 
 //******************************************************************************
-MatrixXd UKF::Prediction_PredictMeanAndCovariance(VectorXd weights,
-                                                  MatrixXd Xsig_pred) {
+void UKF::Prediction_PredictMeanAndCovariance() {
   //predict state mean
-  VectorXd x_pred = VectorXd(n_x_);
-  x_pred.fill(0.0);
+  x_.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
-    x_pred += weights(i) * Xsig_pred.col(i);
+    x_ += weights_(i) * Xsig_pred_.col(i);
   }
 
   //predict state covariance matrix
-  MatrixXd P_pred = MatrixXd(n_x_, n_x_);
-  P_pred.fill(0.0);
+  P_.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
-    VectorXd x_diff = Xsig_pred.col(i) - x_pred;
+    VectorXd x_diff = Xsig_pred_.col(i) - x_;
     x_diff(3) = Normalize(x_diff(3));
-    P_pred += weights(i) * x_diff * x_diff.transpose();
+    P_ += weights_(i) * x_diff * x_diff.transpose();
   }
-  return P_pred;
 }
 
 //******************************************************************************
@@ -274,10 +269,19 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
   /**
    TODO: calculate the radar NIS.
    */
+  MatrixXd Zsig = MatrixXd(n_z_, n_sig_);
+  VectorXd z_pred = VectorXd(n_z_);
+  MatrixXd S = MatrixXd(n_z_, n_z_);
+
+  UpdateRadar_PredictMeanAndCovariance(Zsig, z_pred, S);
+  UpdateRadar_UpdateState(measurement.raw_measurements_, Zsig, z_pred, S);
+}
+
+//******************************************************************************
+void UKF::UpdateRadar_PredictMeanAndCovariance(MatrixXd& Zsig, VectorXd& z_pred,
+                                               MatrixXd& S) {
 
   //transform sigma points into measurement space
-  static const int n_z = 3;  //r, phi, and r_dot
-  MatrixXd Zsig = MatrixXd(n_z, n_sig_);
   for (int i = 0; i < n_sig_; i++) {
     double px = Xsig_pred_(0, i);
     double py = Xsig_pred_(1, i);
@@ -289,18 +293,13 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
     Zsig(2, i) = (px * cos(yaw) * v + py * sin(yaw) * v) / Zsig(0, i);
   }
 
-  /*
-   * Predict Measurement
-   */
   //calculate mean predicted measurement
-  VectorXd z_pred = VectorXd(n_z);
   z_pred.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
     z_pred += weights_(i) * Zsig.col(i);
   }
 
   //calculate measurement covariance matrix S
-  MatrixXd S = MatrixXd(n_z, n_z);
   S.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
     // state difference
@@ -312,12 +311,14 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
 
   //add measurement noise covariance matrix
   S += R_radar_;
+}
 
-  /*
-   * Update State
-   */
+//******************************************************************************
+void UKF::UpdateRadar_UpdateState(const VectorXd& z, const MatrixXd& Zsig,
+                                  const VectorXd& z_pred, const MatrixXd& S) {
+
   //calculate cross correlation matrix
-  MatrixXd Tc = MatrixXd(n_x_, n_z);
+  MatrixXd Tc = MatrixXd(n_x_, n_z_);
   Tc.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
     //residual
@@ -336,7 +337,7 @@ void UKF::UpdateRadar(const MeasurementPackage &measurement) {
 
   //update state mean and covariance matrix
   //residual
-  VectorXd z_diff = measurement.raw_measurements_ - z_pred;
+  VectorXd z_diff = z - z_pred;
   z_diff(1) = Normalize(z_diff(1));
   x_ += K * z_diff;
   P_ += -K * S * K.transpose();
@@ -354,9 +355,57 @@ float UKF::Normalize(float angle_radians) {
   return angle_radians;
 }
 
+//******************************************************************************
+void UKF::test_ProcessRadarMeasurement() {
+  //****************************************************************************
+  x_ << 5.7441, 1.3800, 2.2049, 0.5015, 0.3528;
+  std_a_ = 0.2;
+  std_yawdd_ = 0.2;
+  P_ << 0.0043, -0.0013, 0.0030, -0.0022, -0.0020, -0.0013, 0.0077, 0.0011, 0.0071, 0.0060, 0.0030, 0.0011, 0.0054, 0.0007, 0.0008, -0.0022, 0.0071, 0.0007, 0.0098, 0.0100, -0.0020, 0.0060, 0.0008, 0.0100, 0.0123;
+
+  MatrixXd actual_Xsig_aug = Prediction_GenerateSigmaPoints();
+
+  MatrixXd expect_Xsig_aug = MatrixXd(n_aug_, n_sig_);
+  expect_Xsig_aug << 5.7441, 5.85768, 5.7441, 5.7441, 5.7441, 5.7441, 5.7441, 5.7441, 5.63052, 5.7441, 5.7441, 5.7441, 5.7441, 5.7441, 5.7441, 1.38, 1.34566, 1.52806, 1.38, 1.38, 1.38, 1.38, 1.38, 1.41434, 1.23194, 1.38, 1.38, 1.38, 1.38, 1.38, 2.2049, 2.28414, 2.24557, 2.29582, 2.2049, 2.2049, 2.2049, 2.2049, 2.12566, 2.16423, 2.11398, 2.2049, 2.2049, 2.2049, 2.2049, 0.5015, 0.44339, 0.631886, 0.516923, 0.595227, 0.5015, 0.5015, 0.5015, 0.55961, 0.371114, 0.486077, 0.407773, 0.5015, 0.5015, 0.5015, 0.3528, 0.299973, 0.462123, 0.376339, 0.48417, 0.418721, 0.3528, 0.3528, 0.405627, 0.243477, 0.329261, 0.22143, 0.286879, 0.3528, 0.3528, 0, 0, 0, 0, 0, 0, 0.34641, 0, 0, 0, 0, 0, 0, -0.34641, 0, 0, 0, 0, 0, 0, 0, 0, 0.34641, 0, 0, 0, 0, 0, 0, -0.34641;
+
+  test_CompareResults(expect_Xsig_aug, actual_Xsig_aug,
+                      "Prediction_GenerateSigmaPoints");
+
+  //****************************************************************************
+  double test_dt = 0.1;
+  MatrixXd expect_Xsig_pred = MatrixXd(n_x_, n_sig_);
+  expect_Xsig_pred << 5.93553, 6.06251, 5.92217, 5.9415, 5.92361, 5.93516, 5.93705, 5.93553, 5.80832, 5.94481, 5.92935, 5.94553, 5.93589, 5.93401, 5.93553, 1.48939, 1.44673, 1.66484, 1.49719, 1.508, 1.49001, 1.49022, 1.48939, 1.5308, 1.31287, 1.48182, 1.46967, 1.48876, 1.48855, 1.48939, 2.2049, 2.28414, 2.24557, 2.29582, 2.2049, 2.2049, 2.23954, 2.2049, 2.12566, 2.16423, 2.11398, 2.2049, 2.2049, 2.17026, 2.2049, 0.53678, 0.473387, 0.678098, 0.554557, 0.643644, 0.543372, 0.53678, 0.538512, 0.600173, 0.395462, 0.519003, 0.429916, 0.530188, 0.53678, 0.535048, 0.3528, 0.299973, 0.462123, 0.376339, 0.48417, 0.418721, 0.3528, 0.387441, 0.405627, 0.243477, 0.329261, 0.22143, 0.286879, 0.3528, 0.318159;
+
+  Prediction_PredictSigmaPoints(test_dt, expect_Xsig_aug);
+
+  test_CompareResults(expect_Xsig_pred, Xsig_pred_,
+                      "Prediction_PredictSigmaPoints");
+
+  //****************************************************************************
+  Xsig_pred_ << 5.9374, 6.0640, 5.925, 5.9436, 5.9266, 5.9374, 5.9389, 5.9374, 5.8106, 5.9457, 5.9310, 5.9465, 5.9374, 5.9359, 5.93744, 1.48, 1.4436, 1.660, 1.4934, 1.5036, 1.48, 1.4868, 1.48, 1.5271, 1.3104, 1.4787, 1.4674, 1.48, 1.4851, 1.486, 2.204, 2.2841, 2.2455, 2.2958, 2.204, 2.204, 2.2395, 2.204, 2.1256, 2.1642, 2.1139, 2.204, 2.204, 2.1702, 2.2049, 0.5367, 0.47338, 0.67809, 0.55455, 0.64364, 0.54337, 0.5367, 0.53851, 0.60017, 0.39546, 0.51900, 0.42991, 0.530188, 0.5367, 0.535048, 0.352, 0.29997, 0.46212, 0.37633, 0.4841, 0.41872, 0.352, 0.38744, 0.40562, 0.24347, 0.32926, 0.2214, 0.28687, 0.352, 0.318159;
+
+  MatrixXd expect_P = MatrixXd(n_x_, n_x_);
+  expect_P << 0.00543425, -0.0024053, 0.00341576, -0.00348196, -0.00299378, -0.0024053, 0.010845, 0.0014923, 0.00980182, 0.00791091, 0.00341576, 0.0014923, 0.00580129, 0.000778632, 0.000792973, -0.00348196, 0.00980182, 0.000778632, 0.0119238, 0.0112491, -0.00299378, 0.00791091, 0.000792973, 0.0112491, 0.0126972;
+
+  Prediction_PredictMeanAndCovariance();
+
+  test_CompareResults(expect_P, P_, "Prediction_PredictMeanAndCovariance");
+
+  exit(0);
+}
 
 //******************************************************************************
-void UKF::test_ProcessRadarMeasurement()
-{
+void UKF::test_CompareResults(MatrixXd expected, MatrixXd actual,
+                              std::string testString) {
+  const float EPSILON = 1e-5;
+  MatrixXd diff = (expected - actual).cwiseAbs();
 
+  if ((expected - actual).norm() < EPSILON || diff.maxCoeff() < EPSILON) {
+    cout << "Test " << testString << " PASSED" << endl;
+  } else {
+    cout << "Test " << testString << " FAILED" << endl;
+    cout << "Actual:" << actual << endl;
+    cout << endl;
+  }
 }
+
