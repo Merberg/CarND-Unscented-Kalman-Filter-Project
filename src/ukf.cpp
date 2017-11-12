@@ -13,8 +13,8 @@ UKF::UKF()
       use_laser_(true),
       use_radar_(true),
       time_us_(0),
-      std_a_(1.8),
-      std_yawdd_(0.7),
+      std_a_(2.5),
+      std_yawdd_(1),
       n_x_(5),
       n_z_(3),
       n_aug_(7),
@@ -28,12 +28,12 @@ UKF::UKF()
   static const int NOISE_PHI = 0.03;
   static const int NOISE_RD = 0.3;
 
-  // initial state vector
+  // initial state vectors
   x_ = VectorXd(n_x_);
 
   // initial covariance matrix
   P_ = MatrixXd::Identity(n_x_, n_x_);
-  P_ *= 0.15;
+  //P_ *= 0.15;
 
   Xsig_pred_ = MatrixXd(n_x_, n_sig_);
 
@@ -50,7 +50,7 @@ UKF::UKF()
   0, NOISE_PHI * NOISE_PHI, 0,  //
   0, 0, NOISE_RD * NOISE_RD;
 
-  //Uncomment for unit tests
+  //Un-comment for unit tests
   //test_Prediction(false);
   //test_UpdateRadar(true);
 }
@@ -60,21 +60,20 @@ UKF::~UKF()
 }
 
 //******************************************************************************
-VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement)
+void UKF::ProcessMeasurement(const MeasurementPackage meas_package)
 {
 
   //Split depending on the measurement type
-  if (measurement.sensor_type_ == MeasurementPackage::LASER) {
-    ProcessLidarMeasurement(measurement);
+  if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+    ProcessLidarMeasurement(meas_package);
   } else {
-    ProcessRadarMeasurement(measurement);
+    ProcessRadarMeasurement(meas_package);
   }
 
-  return x_;
 }
 
 //******************************************************************************
-void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement)
+void UKF::ProcessLidarMeasurement(const MeasurementPackage meas_package)
 {
 
   if (!use_laser_) {
@@ -82,14 +81,15 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement)
     return;
   }
   cout << "Process Lidar" << endl;
+  cout << "Raw:" << meas_package.raw_measurements_ << endl;
 
   /*****************************************************************************
    *  Initialization
    ****************************************************************************/
   if (!is_initialized_) {
-    float px = measurement.raw_measurements_(0);
-    float py = measurement.raw_measurements_(1);
-    Init(px, py, measurement.timestamp_);
+    float px = meas_package.raw_measurements_(0);
+    float py = meas_package.raw_measurements_(1);
+    Init(px, py, meas_package.timestamp_);
 
     is_initialized_ = true;
     return;
@@ -98,12 +98,15 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement)
   /*****************************************************************************
    *  Prediction
    ****************************************************************************/
-  Prediction(measurement.timestamp_);
+  Prediction(meas_package.timestamp_);
+  cout << "Prediction" << endl;
+  cout << "x: " << x_ << endl;
+  cout << "P:" << P_ << endl;
 
   /*****************************************************************************
    *  Update
    ****************************************************************************/
-  UpdateLidar(measurement);
+  UpdateLidar(meas_package);
 
   //Return the updated state
   cout << "x: " << x_ << endl;
@@ -113,7 +116,7 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement)
 }
 
 //******************************************************************************
-void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement)
+void UKF::ProcessRadarMeasurement(const MeasurementPackage meas_package)
 {
 
   if (!use_radar_) {
@@ -121,14 +124,15 @@ void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement)
     return;
   }
   cout << "Process Radar" << endl;
+  cout << "Raw:" << meas_package.raw_measurements_ << endl;
 
   /*****************************************************************************
    *  Initialization
    ****************************************************************************/
   if (!is_initialized_) {
-    float rho = measurement.raw_measurements_(0);
-    float phi = measurement.raw_measurements_(1);
-    Init(rho * cos(phi), rho * sin(phi), measurement.timestamp_);
+    float rho = meas_package.raw_measurements_(0);
+    float phi = meas_package.raw_measurements_(1);
+    Init(rho * cos(phi), rho * sin(phi), meas_package.timestamp_);
 
     is_initialized_ = true;
     return;
@@ -137,12 +141,15 @@ void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement)
   /*****************************************************************************
    *  Prediction
    ****************************************************************************/
-  Prediction(measurement.timestamp_);
+  Prediction(meas_package.timestamp_);
+  cout << "Prediction" << endl;
+  cout << "x: " << x_ << endl;
+  cout << "P:" << P_ << endl;
 
   /*****************************************************************************
    *  Update
    ****************************************************************************/
-  UpdateRadar(measurement);
+  UpdateRadar(meas_package);
 
   //Return the updated state
   cout << "x: " << x_ << endl;
@@ -185,9 +192,8 @@ MatrixXd UKF::Prediction_GenerateSigmaPoints()
 {
   //create augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
+  x_aug.fill(0.0);
   x_aug.head(5) = x_;
-  x_aug(5) = 0;
-  x_aug(6) = 0;
 
   //create augmented state covariance
   MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
@@ -259,20 +265,21 @@ void UKF::Prediction_PredictMeanAndCovariance()
 }
 
 //******************************************************************************
-void UKF::UpdateLidar(const MeasurementPackage &measurement)
+void UKF::UpdateLidar(const MeasurementPackage meas_package)
 {
   MatrixXd H = MatrixXd(2, n_x_);
   H << 1, 0, 0, 0, 0,  //
   0, 1, 0, 0, 0;
 
-  VectorXd y = measurement.raw_measurements_ - H * x_;
-  MatrixXd Ht = H.transpose();
-  MatrixXd S = H * P_ * Ht + R_lidar_;
-  MatrixXd Si = S.inverse();
-  MatrixXd K = P_ * Ht * Si;
+  VectorXd z_pred = H * x_;
+  VectorXd y = meas_package.raw_measurements_ - z_pred;
+
+  MatrixXd PHt = P_ * H.transpose();
+  MatrixXd S = H * PHt + R_lidar_;
+  MatrixXd K = PHt * S.inverse();
 
   //new state
-  x_ = x_ + (K * y);
+  x_ += (K * y);
   long x_size = x_.size();
   MatrixXd I = MatrixXd::Identity(x_size, x_size);
   P_ = (I - K * H) * P_;
@@ -280,10 +287,10 @@ void UKF::UpdateLidar(const MeasurementPackage &measurement)
 }
 
 //******************************************************************************
-void UKF::UpdateRadar(const MeasurementPackage &measurement)
+void UKF::UpdateRadar(const MeasurementPackage meas_package)
 {
   MatrixXd Zsig = MatrixXd(n_z_, n_sig_);
-  VectorXd z = measurement.raw_measurements_;
+  VectorXd z = meas_package.raw_measurements_;
   VectorXd z_pred = VectorXd(n_z_);
   MatrixXd S = MatrixXd(n_z_, n_z_);
 
@@ -443,9 +450,13 @@ void UKF::test_Prediction(bool exitAtEnd)
   -0.00348196, 0.00980182, 0.000778632, 0.0119238, 0.0112491,  //
   -0.00299378, 0.00791091, 0.000792973, 0.0112491, 0.0126972;
 
+  VectorXd expect_x_ = VectorXd(n_x_);
+  expect_x_ << 5.93637, 1.49035, 2.20528, 0.536853, 0.353577;
+
   Prediction_PredictMeanAndCovariance();
 
-  test_CompareResults(expect_P, P_, "Prediction_PredictMeanAndCovariance");
+  test_CompareResults(expect_x_, x_, "Prediction_PredictMeanAndCovariance x");
+  test_CompareResults(expect_P, P_, "Prediction_PredictMeanAndCovariance P");
 
   if (exitAtEnd)
     exit(0);

@@ -26,7 +26,10 @@ class UKF {
   /**
    * Run the Unscented Kalman Filter process and return the state
    */
-  VectorXd ProcessMeasurement(const MeasurementPackage &);
+  void ProcessMeasurement(const MeasurementPackage);
+
+  ///* state vector: [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
+  VectorXd x_;
 
  private:
   ///* initially set to false, set to true in first call of ProcessMeasurement
@@ -37,9 +40,6 @@ class UKF {
 
   ///* if this is false, radar measurements will be ignored (except for init)
   bool use_radar_;
-
-  ///* state vector: [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
-  VectorXd x_;
 
   ///* state covariance matrix
   MatrixXd P_;
@@ -88,8 +88,8 @@ class UKF {
    * enable change to Template Method in the event another sensor type is added
    * later.
    */
-  void ProcessLidarMeasurement(const MeasurementPackage &);
-  void ProcessRadarMeasurement(const MeasurementPackage &);
+  void ProcessLidarMeasurement(const MeasurementPackage);
+  void ProcessRadarMeasurement(const MeasurementPackage);
 
   /**
    * Initialize the state and time
@@ -111,9 +111,9 @@ class UKF {
    * measurements.  The functionality is split into methods to make it easier for
    * testing with known data points.
    */
-  void UpdateLidar(const MeasurementPackage &);
+  void UpdateLidar(const MeasurementPackage);
 
-  void UpdateRadar(const MeasurementPackage &);
+  void UpdateRadar(const MeasurementPackage);
   void UpdateRadar_PredictMeanAndCovariance(MatrixXd&, VectorXd&, MatrixXd&);
   void UpdateRadar_UpdateState(const VectorXd&, const MatrixXd&,
                                const VectorXd&, const MatrixXd&);
