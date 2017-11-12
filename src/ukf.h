@@ -80,6 +80,9 @@ class UKF {
   ///* Sigma point spreading parameter
   const double lambda_;
 
+  ///* Radar NIS running average
+  float NIS_radar_;
+
   /**
    * Process the Measurements for Lidar and Radar (splitting into methods to
    * enable change to Template Method in the event another sensor type is added
@@ -112,7 +115,10 @@ class UKF {
 
   void UpdateRadar(const MeasurementPackage &);
   void UpdateRadar_PredictMeanAndCovariance(MatrixXd&, VectorXd&, MatrixXd&);
-  void UpdateRadar_UpdateState(const VectorXd&, const MatrixXd&, const VectorXd&, const MatrixXd&);
+  void UpdateRadar_UpdateState(const VectorXd&, const MatrixXd&,
+                               const VectorXd&, const MatrixXd&);
+  void UpdateRadar_CalculateNIS(const VectorXd&, const VectorXd&,
+                                const MatrixXd&);
 
   /**
    * Normalizes the angles if needed

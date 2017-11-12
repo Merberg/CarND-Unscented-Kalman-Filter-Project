@@ -13,13 +13,15 @@ UKF::UKF()
       use_laser_(true),
       use_radar_(true),
       time_us_(0),
-      std_a_(2.5),  //TODO adjust
-      std_yawdd_(1),  //TODO adjust
+      std_a_(1.8),
+      std_yawdd_(0.7),
       n_x_(5),
       n_z_(3),
       n_aug_(7),
       n_sig_(2 * n_aug_ + 1),
-      lambda_(3 - n_aug_) {
+      lambda_(3 - n_aug_),
+      NIS_radar_(7.815)
+{
   static const int NOISE_PX = 0.15;
   static const int NOISE_PY = 0.15;
   static const int NOISE_RHO = 0.3;
@@ -48,15 +50,18 @@ UKF::UKF()
   0, NOISE_PHI * NOISE_PHI, 0,  //
   0, 0, NOISE_RD * NOISE_RD;
 
-  test_Prediction(false);
-  test_UpdateRadar(true);
+  //Uncomment for unit tests
+  //test_Prediction(false);
+  //test_UpdateRadar(true);
 }
 
-UKF::~UKF() {
+UKF::~UKF()
+{
 }
 
 //******************************************************************************
-VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement) {
+VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement)
+{
 
   //Split depending on the measurement type
   if (measurement.sensor_type_ == MeasurementPackage::LASER) {
@@ -69,7 +74,8 @@ VectorXd UKF::ProcessMeasurement(const MeasurementPackage &measurement) {
 }
 
 //******************************************************************************
-void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement) {
+void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement)
+{
 
   if (!use_laser_) {
     cout << "Lidar NOT IN USE" << endl;
@@ -107,7 +113,8 @@ void UKF::ProcessLidarMeasurement(const MeasurementPackage &measurement) {
 }
 
 //******************************************************************************
-void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement) {
+void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement)
+{
 
   if (!use_radar_) {
     cout << "Radar NOT IN USE" << endl;
@@ -144,7 +151,8 @@ void UKF::ProcessRadarMeasurement(const MeasurementPackage &measurement) {
 }
 
 //******************************************************************************
-void UKF::Init(float px, float py, long long ts) {
+void UKF::Init(float px, float py, long long ts)
+{
   /**
    Initialize state.
    */
@@ -158,7 +166,8 @@ void UKF::Init(float px, float py, long long ts) {
 }
 
 //******************************************************************************
-void UKF::Prediction(double timestamp) {
+void UKF::Prediction(double timestamp)
+{
 
   double dt = (timestamp - time_us_) / 1000000.0;  //dt in seconds
   time_us_ = timestamp;
@@ -172,7 +181,8 @@ void UKF::Prediction(double timestamp) {
 }
 
 //******************************************************************************
-MatrixXd UKF::Prediction_GenerateSigmaPoints() {
+MatrixXd UKF::Prediction_GenerateSigmaPoints()
+{
   //create augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
   x_aug.head(5) = x_;
@@ -202,7 +212,8 @@ MatrixXd UKF::Prediction_GenerateSigmaPoints() {
 
 //******************************************************************************
 void UKF::Prediction_PredictSigmaPoints(const double dt,
-                                        const MatrixXd& Xsig_aug) {
+                                        const MatrixXd& Xsig_aug)
+{
   double half_dt_sqr = 0.5 * dt * dt;
 
   for (int i = 0; i < n_sig_; i++) {
@@ -230,7 +241,8 @@ void UKF::Prediction_PredictSigmaPoints(const double dt,
 }
 
 //******************************************************************************
-void UKF::Prediction_PredictMeanAndCovariance() {
+void UKF::Prediction_PredictMeanAndCovariance()
+{
   //predict state mean
   x_.fill(0.0);
   for (int i = 0; i < n_sig_; i++) {
@@ -247,7 +259,8 @@ void UKF::Prediction_PredictMeanAndCovariance() {
 }
 
 //******************************************************************************
-void UKF::UpdateLidar(const MeasurementPackage &measurement) {
+void UKF::UpdateLidar(const MeasurementPackage &measurement)
+{
   MatrixXd H = MatrixXd(2, n_x_);
   H << 1, 0, 0, 0, 0,  //
   0, 1, 0, 0, 0;
@@ -263,24 +276,26 @@ void UKF::UpdateLidar(const MeasurementPackage &measurement) {
   long x_size = x_.size();
   MatrixXd I = MatrixXd::Identity(x_size, x_size);
   P_ = (I - K * H) * P_;
+
 }
 
 //******************************************************************************
-void UKF::UpdateRadar(const MeasurementPackage &measurement) {
-  /**
-   TODO: calculate the radar NIS.
-   */
+void UKF::UpdateRadar(const MeasurementPackage &measurement)
+{
   MatrixXd Zsig = MatrixXd(n_z_, n_sig_);
+  VectorXd z = measurement.raw_measurements_;
   VectorXd z_pred = VectorXd(n_z_);
   MatrixXd S = MatrixXd(n_z_, n_z_);
 
   UpdateRadar_PredictMeanAndCovariance(Zsig, z_pred, S);
-  UpdateRadar_UpdateState(measurement.raw_measurements_, Zsig, z_pred, S);
+  UpdateRadar_UpdateState(z, Zsig, z_pred, S);
+  UpdateRadar_CalculateNIS(z, z_pred, S);
 }
 
 //******************************************************************************
 void UKF::UpdateRadar_PredictMeanAndCovariance(MatrixXd& Zsig, VectorXd& z_pred,
-                                               MatrixXd& S) {
+                                               MatrixXd& S)
+{
 
   //transform sigma points into measurement space
   for (int i = 0; i < n_sig_; i++) {
@@ -316,8 +331,8 @@ void UKF::UpdateRadar_PredictMeanAndCovariance(MatrixXd& Zsig, VectorXd& z_pred,
 
 //******************************************************************************
 void UKF::UpdateRadar_UpdateState(const VectorXd& z, const MatrixXd& Zsig,
-                                  const VectorXd& z_pred, const MatrixXd& S) {
-
+                                  const VectorXd& z_pred, const MatrixXd& S)
+{
   //calculate cross correlation matrix
   MatrixXd Tc = MatrixXd(n_x_, n_z_);
   Tc.fill(0.0);
@@ -346,7 +361,19 @@ void UKF::UpdateRadar_UpdateState(const VectorXd& z, const MatrixXd& Zsig,
 }
 
 //******************************************************************************
-float UKF::Normalize(float angle_radians) {
+void UKF::UpdateRadar_CalculateNIS(const VectorXd& z, const VectorXd& z_pred,
+                                   const MatrixXd& S)
+{
+  VectorXd z_diff = z_pred - z;
+  z_diff(1) = Normalize(z_diff(1));
+  float nis = z_diff.transpose() * S.inverse() * z_diff;
+  NIS_radar_ = (NIS_radar_ + nis) / 2.0;
+  cout << "Radar NIS:" << nis << " (" << NIS_radar_ << ")" << endl;
+}
+
+//******************************************************************************
+float UKF::Normalize(float angle_radians)
+{
   //float int_part = 0.0;
   //return modff((angle_radians + M_PI)/2.*M_PI, &int_part) - M_PI;
   while (angle_radians > M_PI)
@@ -357,7 +384,8 @@ float UKF::Normalize(float angle_radians) {
 }
 
 //******************************************************************************
-void UKF::test_Prediction(bool exitAtEnd) {
+void UKF::test_Prediction(bool exitAtEnd)
+{
   //***Test 1 Prediction_GenerateSigmaPoints************************************
   x_ << 5.7441, 1.3800, 2.2049, 0.5015, 0.3528;
   std_a_ = 0.2;
@@ -424,7 +452,8 @@ void UKF::test_Prediction(bool exitAtEnd) {
 }
 
 //******************************************************************************
-void UKF::test_UpdateRadar(bool exitAtEnd) {
+void UKF::test_UpdateRadar(bool exitAtEnd)
+{
 //***Test 1 UpdateRadar_PredictMeanAndCovariance******************************
   R_radar_ <<  //
       0.3 * 0.3, 0, 0,  //
@@ -492,7 +521,8 @@ void UKF::test_UpdateRadar(bool exitAtEnd) {
 
 //******************************************************************************
 void UKF::test_CompareResults(MatrixXd expected, MatrixXd actual,
-                              std::string testString) {
+                              std::string testString)
+{
   const float EPSILON = 1e-5;
   MatrixXd diff = (expected - actual).cwiseAbs();
 
