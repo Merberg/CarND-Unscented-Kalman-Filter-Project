@@ -13,14 +13,13 @@ UKF::UKF()
       use_laser_(true),
       use_radar_(true),
       time_us_(0),
-      std_a_(2.5),
-      std_yawdd_(1),
+      std_a_(1.4),
+      std_yawdd_(M_PI/8),
       N_x_(5),
       N_z_(3),
       N_AUG_(7),
       N_SIG_(2 * N_AUG_ + 1),
-      LAMBDA_(3 - N_AUG_),
-      NIS_radar_(7.815)
+      LAMBDA_(3 - N_AUG_)
 {
   static const float NOISE_PX = 0.15;
   static const float NOISE_PY = 0.15;
@@ -271,8 +270,7 @@ void UKF::UpdateLidar_CalculateNIS(const VectorXd& z, const VectorXd& z_pred,
 {
   VectorXd z_diff = z_pred - z;
   float nis = z_diff.transpose() * S.inverse() * z_diff;
-  NIS_lidar_ = (NIS_lidar_ + nis) / 2.0;
-  cout << "Lidar NIS:" << nis << " (" << NIS_lidar_ << ")" << endl;
+  cout << "Lidar NIS;" << nis << ";" << endl;
 }
 
 //******************************************************************************
@@ -363,8 +361,7 @@ void UKF::UpdateRadar_CalculateNIS(const VectorXd& z, const VectorXd& z_pred,
   VectorXd z_diff = z_pred - z;
   z_diff(1) = Normalize(z_diff(1));
   float nis = z_diff.transpose() * S.inverse() * z_diff;
-  NIS_radar_ = (NIS_radar_ + nis) / 2.0;
-  cout << "Radar NIS:" << nis << " (" << NIS_radar_ << ")" << endl;
+  cout << "Radar NIS;;;" << nis << ";" << endl;
 }
 
 //******************************************************************************

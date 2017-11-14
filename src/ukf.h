@@ -80,12 +80,6 @@ class UKF {
   ///* Sigma point spreading parameter
   const double LAMBDA_;
 
-  ///* Lidar NIS running average
-  float NIS_lidar_;
-
-  ///* Radar NIS running average
-  float NIS_radar_;
-
   /**
    * Process the Measurements for Lidar and Radar (splitting into methods to
    * enable change to Template Method in the event another sensor type is added
