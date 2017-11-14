@@ -105,19 +105,20 @@ int main()
     	  gt_values(3) = vy_gt;
     	  ground_truth.push_back(gt_values);
           
-        //Call ProcessMeasurment(meas_package) for Kalman filter
-    	  ukf.ProcessMeasurement(meas_package);
+          //Call ProcessMeasurment(meas_package) for Kalman filter
+    	  ukf.ProcessMeasurement(meas_package);    	  
 
     	  //Push the current estimated x,y positon from the Kalman filter's state vector
+
     	  VectorXd estimate(4);
 
-        double p_x = ukf.x_(0);
-        double p_y = ukf.x_(1);
-        double v = ukf.x_(2);
-        double yaw = ukf.x_(3);
+    	  double p_x = ukf.x_(0);
+    	  double p_y = ukf.x_(1);
+    	  double v  = ukf.x_(2);
+    	  double yaw = ukf.x_(3);
 
-        double v1 = cos(yaw)*v;
-        double v2 = sin(yaw)*v;
+    	  double v1 = cos(yaw)*v;
+    	  double v2 = sin(yaw)*v;
 
     	  estimate(0) = p_x;
     	  estimate(1) = p_y;

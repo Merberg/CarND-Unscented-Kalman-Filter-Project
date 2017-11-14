@@ -66,19 +66,22 @@ class UKF {
   VectorXd weights_;
 
   ///* State dimension
-  const int n_x_;
+  const int N_x_;
 
   ///* Radar dimension (rho, phi, and rho_dot)
-  const int n_z_;
+  const int N_z_;
 
   ///* Augmented state dimension
-  const int n_aug_;
+  const int N_AUG_;
 
   ///* Number of sigma points
-  const int n_sig_;
+  const int N_SIG_;
 
   ///* Sigma point spreading parameter
-  const double lambda_;
+  const double LAMBDA_;
+
+  ///* Lidar NIS running average
+  float NIS_lidar_;
 
   ///* Radar NIS running average
   float NIS_radar_;
@@ -112,6 +115,8 @@ class UKF {
    * testing with known data points.
    */
   void UpdateLidar(const MeasurementPackage);
+  void UpdateLidar_CalculateNIS(const VectorXd&, const VectorXd&,
+                                const MatrixXd&);
 
   void UpdateRadar(const MeasurementPackage);
   void UpdateRadar_PredictMeanAndCovariance(MatrixXd&, VectorXd&, MatrixXd&);
